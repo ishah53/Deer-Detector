@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Deer Alert Hub</title>
+    <!-- Force exact library dependency versions required by Teachable Machine -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -9,37 +10,55 @@
     <h2>Deer Tracking Link</h2>
     
     <button id="connectBtn" style="padding:15px; font-size:16px; margin:10px;">1. Link Pico Board</button>
-    <button id="startBtn" style="padding:15px; font-size:16px; margin:10px;" disabled>2. Boot Camera Feed</button>
+    <button id="startBtn" style="padding:15px; font-size:16px; margin:10px;">2. Boot Camera Feed</button>
     
     <div id="webcam-container" style="margin:20px auto; width:224px; border:3px solid #444;"></div>
-    <h1 id="status" style="color:green;">SYSTEM STATE: CLEAR</h1>
+    <h1 id="status" style="color:green;">SYSTEM STATE: INITIALIZING</h1>
 
-    <script>
+    <script type="text/javascript">
         // REPLACE THIS URL STUB WITH YOUR EXPORTED TEACHABLE MACHINE LINK
-        const URL = "https://teachablemachine.withgoogle.com/models/twE1Y5Uvw/";
+        // Ensure there is EXACTLY one forward slash at the very end of your link
+        const URL = "https://withgoogle.com";
         
         let model, webcam, port, writer;
+
+        // Visual feedback to verify libraries are active right away
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof tmImage !== 'undefined') {
+                document.getElementById("status").innerText = "SYSTEM STATE: READY TO CONNECT";
+            } else {
+                document.getElementById("status").innerText = "ERROR: LIBRARIES NOT LOADED";
+            }
+        });
 
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
                 port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 9600 }); 
+                await port.open({ baudRate: 115200 }); 
                 const encoder = new TextEncoderStream();
                 encoder.readable.pipeTo(port.writable);
                 writer = encoder.writable.getWriter();
                 document.getElementById('connectBtn').innerText = "Pico Connected!";
-                document.getElementById('startBtn').disabled = false;
             } catch (err) {
                 alert("USB Serial Connection Failed: " + err);
             }
         });
 
         document.getElementById('startBtn').addEventListener('click', async () => {
+            // Safety check to ensure library has populated globally
+            if (typeof tmImage === 'undefined') {
+                alert("Teachable Machine library is still downloading from Google CDN. Wait 3 seconds and tap again!");
+                return;
+            }
+            
             document.getElementById('startBtn').innerText = "Loading AI Model...";
             model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+            
             webcam = new tmImage.Webcam(224, 224, true); 
             await webcam.setup({ facingMode: "environment" }); 
             await webcam.play();
+            
+            document.getElementById("webcam-container").innerHTML = ""; // Clear loader
             document.getElementById("webcam-container").appendChild(webcam.canvas);
             document.getElementById('startBtn').innerText = "AI Monitoring Live";
             window.requestAnimationFrame(loop);
@@ -56,7 +75,7 @@
             const prediction = await model.predict(webcam.canvas);
             
             // Checks confidence array index 0 (assuming your Class 0 is "Deer")
-            let deerConfidence = prediction[0].probability;
+            let deerConfidence = prediction.probability;
             let percentage = Math.round(deerConfidence * 100);
             let currentState = "CLEAR";
 
