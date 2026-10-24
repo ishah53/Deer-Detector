@@ -44,12 +44,32 @@
             }
         });
 
-        document.getElementById('startBtn').addEventListener('click', async () => {
-            // Safety check to ensure library has populated globally
-            if (typeof tmImage === 'undefined') {
-                alert("Teachable Machine library is still downloading from Google CDN. Wait 3 seconds and tap again!");
-                return;
-            }
+       document.getElementById('startBtn').addEventListener('click', async () => {
+    if (typeof tmImage === 'undefined') {
+        alert("Teachable Machine library is still downloading from Google CDN. Wait 3 seconds and tap again!");
+        return;
+    }
+    
+    // 1. Clearly build the exact absolute paths to your files as separate text strings
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+    
+    document.getElementById('startBtn').innerText = "Loading AI Model...";
+    
+    // 2. Pass the pre-built clean strings directly into the Google library loader
+    model = await tmImage.load(modelURL, metadataURL);
+    
+    // 3. Fire up the webcam canvas
+    webcam = new tmImage.Webcam(224, 224, true); 
+    await webcam.setup({ facingMode: "environment" }); 
+    await webcam.play();
+    
+    document.getElementById("webcam-container").innerHTML = ""; 
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+    document.getElementById('startBtn').innerText = "AI Monitoring Live";
+    window.requestAnimationFrame(loop);
+});
+
             
             document.getElementById('startBtn').innerText = "Loading AI Model...";
             model = await tmImage.load(URL + "model.json", URL + "metadata.json");
