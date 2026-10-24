@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deer Alert Hub</title>
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body style="font-family:sans-serif; text-align:center; padding:20px; background-color:#111; color:#fff;">
+    <h2>Deer Tracking Link</h2>
+    
+    <button id="connectBtn" style="padding:15px; font-size:16px; margin:10px;">1. Link Pico Board</button>
+    <button id="startBtn" style="padding:15px; font-size:16px; margin:10px;" disabled>2. Boot Camera Feed</button>
+    
+    <div id="webcam-container" style="margin:20px auto; width:224px; border:3px solid #444;"></div>
+    <h1 id="status" style="color:green;">SYSTEM STATE: CLEAR</h1>
+
+    <script>
+        // REPLACE THIS URL STUB WITH YOUR EXPORTED TEACHABLE MACHINE LINK
+        const URL = "https://teachablemachine.withgoogle.com/models/twE1Y5Uvw/";
+        
+        let model, webcam, port, writer;
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 }); 
+                const encoder = new TextEncoderStream();
+                encoder.readable.pipeTo(port.writable);
+                writer = encoder.writable.getWriter();
+                document.getElementById('connectBtn').innerText = "Pico Connected!";
+                document.getElementById('startBtn').disabled = false;
+            } catch (err) {
+                alert("USB Serial Connection Failed: " + err);
+            }
+        });
+
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            document.getElementById('startBtn').innerText = "Loading AI Model...";
+            model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+            webcam = new tmImage.Webcam(224, 224, true); 
+            await webcam.setup({ facingMode: "environment" }); 
+            await webcam.play();
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            document.getElementById('startBtn').innerText = "AI Monitoring Live";
+            window.requestAnimationFrame(loop);
+        });
+
+        async function loop() {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        let lastState = "";
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            // Checks confidence array index 0 (assuming your Class 0 is "Deer")
+            let deerConfidence = prediction[0].probability;
+            let percentage = Math.round(deerConfidence * 100);
+            let currentState = "CLEAR";
+
+            if (percentage >= 90) {
+                currentState = "CRITICAL";
+                document.getElementById("status").innerText = `CRITICAL DETECT: ${percentage}%`;
+                document.getElementById("status").style.color = "#ff4444";
+            } else if (percentage >= 50) {
+                currentState = "ALERT";
+                document.getElementById("status").innerText = `WARNING ALERT: ${percentage}%`;
+                document.getElementById("status").style.color = "#ffaa00";
+            } else {
+                currentState = "CLEAR";
+                document.getElementById("status").innerText = `SAFE ROAD STATE: ${percentage}%`;
+                document.getElementById("status").style.color = "#00ff00";
+            }
+
+            if (currentState !== lastState) {
+                lastState = currentState;
+                if (writer) {
+                    await writer.write(currentState + "\n");
+                }
+            }
+        }
+    </script>
+</body>
+</html>
